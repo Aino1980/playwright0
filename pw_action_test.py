@@ -31,3 +31,18 @@ def test_pw_new_page(page: Page):
     page_new = new_page.value
     expect(page_new.locator(".search-button")).to_be_attached()
 
+
+def test_pw_hover(page: Page):
+    page.goto("/demo/hover", wait_until="networkidle")
+    page.locator("#c4").hover()
+    expect(page.get_by_text("你已经成功悬浮")).to_be_visible()
+
+
+def test_pw_dropdown(page: Page):
+    page.goto("/demo/dropdown", wait_until="networkidle")
+    page.get_by_text("点击选择").click()
+    page.get_by_text("playwright").click()
+    expect(page.get_by_text("你选择了websocket"))
+    page.get_by_text("点击选择").click()
+    page.get_by_text("selenium").click()
+    expect(page.get_by_text("你选择了webdriver"))
