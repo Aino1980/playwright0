@@ -1,7 +1,8 @@
-from playwright.sync_api import Page, expect, Playwright
+from playwright.sync_api import Page, expect, Playwright, BrowserContext
+import pytest
 
 
-def test_get_by_role(page: Page):
+def test_get_by_role(page: Page, hello_world):
     """
 ARIA 是Accessible Rich Internet Applications的缩写，
 指可访问的富互联网应用程序。role 属性是 ARIA 中的一个重要属性，
@@ -154,32 +155,75 @@ def test_get_by_test_id(page: Page, playwright:Playwright):
     expect(page.get_by_test_id("Howls Moving Castle")).to_be_visible()
 
 
-def test_get_by_xpath(page: Page):
-    page.goto("/demo/chip", wait_until="networkidle")
-    page
+def test_get_by_locator_css(page: Page):
+    page.goto("https://www.taobao.com/")
+    expect(page.locator("#q")).to_be_visible()
+    expect(page.locator(".image-search-icon")).to_be_visible()
+    expect(page.locator(".tbh-service.J_Module")).to_be_attached()
+    expect(page.locator(".tbh-service.J_Module>div>div")).to_have_count(2)
+    expect(page.locator(".tbh-service.J_Module ul")).to_be_visible()
+    expect(page.locator('.slick-dots[style="display: block;"]')).to_be_visible()
+    expect(page.locator(".slick-dots,#q")).to_have_count(2)
+    expect(page.locator('.tb-pick-feeds-container div.tb-pick-content-item a:not([data-spm="d1"])')).to_have_count(23)
+    expect(page.locator('[class*="image-search-i"]')).to_be_visible()
+    expect(page.locator('[class^="image-search-i"]')).to_be_visible()
+    expect(page.locator('[class$="search-icon"]')).to_be_visible()
 
 
-def test_get_by_css(page: Page):
-    page.goto("/demo/chip", wait_until="networkidle")
-    page
+def test_get_by_locator_xpath(page: Page):
+    page.goto("https://www.taobao.com/")
+    expect(page.locator('//input[@id="q"]')).to_be_visible()
+    expect(page.locator('//div[text()="潮电数码"]')).to_be_visible()
+    expect(page.locator('//div[contains(text(),"饰时尚")]')).to_be_visible()
+    expect(page.locator('//div[@data-spm-click="gostr=/tbindex.newpc.guessitem;locaid=dtab_2"][@class="tb-pick-header-tab "]')).to_be_visible()
+    expect(page.locator('//div[@data-spm-click="gostr=/tbindex.newpc.guessitem;locaid=dtab_2"]|//input[@id="q"]')).to_have_count(2)
+    expect(page.locator('//div[contains(@class,"service2024")]/parent::div')).to_have_count(1)
+    expect(page.locator('//div[contains(@class,"service2024")]/ancestor::div')).to_have_count(2)
+    expect(page.locator('//div[contains(@class,"service2024")]/following::button')).to_have_count(6)
+    expect(page.locator('//li[@data-index="5"]/following-sibling::li')).to_have_count(5)
+    expect(page.locator('//li[@data-index="8"]/preceding-sibling::li')).to_have_count(8)
+    expect(page.locator('//li[@aria-label="查看更多"][last()-1]')).to_be_visible()
 
 
 def test_filter(page: Page):
-    page.goto("/demo/chip", wait_until="networkidle")
-    page
+    page.goto("https://www.taobao.com/")
+    assert page.locator('[aria-label="查看更多"]').filter(has_text="工业品").get_by_role("link").all_text_contents()[-1] == "定制"
+    assert page.locator('[aria-label="查看更多"]').filter(has=page.locator("//a[text()='工业品']")).get_by_role("link").all_text_contents()[-1] == "定制"
+    expect(page.locator('[aria-label="查看更多"]').filter(has_text="工业品").filter(has_not_text="定制")).to_have_count(0)
 
 
-def test_and_or(page: Page):
-    page.goto("/demo/chip", wait_until="networkidle")
-    page
+def test_and_or_visible(page: Page):
+    page.goto("https://www.taobao.com/")
+    expect(page.get_by_text("电脑").and_(page.get_by_role("link"))).to_be_visible()
+    expect(page.get_by_text("电脑").and_(page.get_by_role("link")).or_(page.locator("#q"))).to_have_count(2)
+    expect(page.get_by_text("电脑").locator("visible=true")).to_be_visible()
 
 
 def test_nth_all(page: Page):
-    page.goto("/demo/chip", wait_until="networkidle")
-    page
+    page.goto("https://www.taobao.com/")
+    expect(page.locator('[aria-label="查看更多"]').last).to_contain_text("鲜花")
+    expect(page.locator('[aria-label="查看更多"]').first).to_contain_text("电脑")
+    expect(page.locator('[aria-label="查看更多"]').nth(4)).to_contain_text("男装")
+    for _ in page.locator('[aria-label="查看更多"]').all():
+        print(_.text_content())
 
 
 def test_frame_locator(page: Page):
     page.goto("/demo/iframe", wait_until="networkidle")
+    baidu = page.frame(url='https://www.baidu.com/')
+    baidu.fill("#kw", "playwright")
+    page.frame_locator('[src="http://www.自动化测试.com"]').get_by_text("B站视频").click()
 
-    page
+
+
+
+
+
+
+
+
+
+
+
+
+

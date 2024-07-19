@@ -1,9 +1,11 @@
 import os.path
+import pytest
 
 from playwright.sync_api import Page, expect
 
 
-def test_pw_click(page: Page):
+@pytest.mark.only
+def test_pw_click(page: Page, hello_world):
     page.goto("/demo/button")
     page.get_by_text("点击我试试1").click(modifiers=["Control"])
     page.get_by_text("点击我试试1").click(position={"x": 15, "y": 20})
