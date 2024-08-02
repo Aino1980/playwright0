@@ -1,5 +1,6 @@
 from playwright.sync_api import Page, expect, Playwright, BrowserContext
 import pytest
+import re
 
 
 def test_get_by_role(page: Page, hello_world):
@@ -209,7 +210,7 @@ def test_nth_all(page: Page):
 
 
 def test_frame_locator(page: Page):
-    page.goto("/demo/iframe", wait_until="networkidle")
+    page.goto("http://www.自动化测试.com/demo/iframe", wait_until="networkidle")
     baidu = page.frame(url='https://www.baidu.com/')
     baidu.fill("#kw", "playwright")
     page.frame_locator('[src="http://www.自动化测试.com"]').get_by_text("B站视频").click()

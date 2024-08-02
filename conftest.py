@@ -1,4 +1,6 @@
 import pytest
+import re
+from utils.globalMap import GlobalMap
 from typing import (
     Any,
     Callable,
@@ -25,6 +27,14 @@ from typing import (
 # def page(context: BrowserContext) -> Page:
 #     print("this is my page")
 #     return context.new_page()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def test_init(base_url):
+    global_map = GlobalMap()
+    global_map.set("baseurl", base_url)
+    env = re.search("(https://)(.*)(.ezone.work)", base_url).group(2)
+    global_map.set("env", env)
 
 
 @pytest.fixture(scope="session")
