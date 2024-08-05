@@ -17,6 +17,13 @@ class PageObject:
             button_loc = button_loc.filter(has_text=单字符)
         button_loc.click(timeout=timeout)
 
+    def search(self, 搜索内容: str, placeholder=None):
+        if placeholder:
+            self.page.locator(f"//span[@class='ant-input-affix-wrapper']//input[contains(@placeholder,'{placeholder}')]").fill(搜索内容)
+        else:
+            self.page.locator(".ant-input-affix-wrapper input").fill(搜索内容)
+        self.page.wait_for_load_state("networkidle")
+
 
 def 使用new_context登录并返回实例化的page(new_context, 用户别名):
     from module.PageInstance import PageIns
