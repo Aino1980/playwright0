@@ -1,6 +1,5 @@
-import os.path
 from module import *
-from utils.globalMap import GlobalMap
+from module.table import Table
 
 
 class PageObject:
@@ -10,6 +9,9 @@ class PageObject:
 
     def navigate(self):
         self.page.goto(self.url)
+
+    def table(self, 唯一文字, 表格序号=-1):
+        return Table(self.page, 唯一文字, 表格序号)
 
     def click_button(self, button_name, timeout=30_000):
         button_loc = self.page.locator("button")
@@ -24,30 +26,6 @@ class PageObject:
             self.page.locator(".ant-input-affix-wrapper input").fill(搜索内容)
         self.page.wait_for_load_state("networkidle")
 
-
-def 使用new_context登录并返回实例化的page(new_context, 用户别名):
-    from module.PageInstance import PageIns
-    global_map = GlobalMap()
-    被测环境 = global_map.get("env")
-    用户名 = MyData().userinfo(被测环境, 用户别名)["username"]
-    密码 = MyData().userinfo(被测环境, 用户别名)["password"]
-    with FileLock(get_path(f".temp/{被测环境}-{用户别名}.lock")):
-        if os.path.exists(get_path(f".temp/{被测环境}-{用户别名}.json")):
-            context: BrowserContext = new_context(storage_state=get_path(f".temp/{被测环境}-{用户别名}.json"))
-            page = context.new_page()
-            my_page = PageIns(page)
-            my_page.我的任务.navigate()
-            expect(my_page.登录页.用户名输入框.or_(my_page.登录页.通知铃铛)).to_be_visible()
-            if my_page.登录页.用户名输入框.count():
-                my_page.登录页.登录(用户名, 密码)
-                my_page.page.context.storage_state(path=get_path(f".temp/{被测环境}-{用户别名}.json"))
-        else:
-            context: BrowserContext = new_context()
-            page = context.new_page()
-            my_page = PageIns(page)
-            my_page.登录页.登录(用户名, 密码)
-            my_page.page.context.storage_state(path=get_path(f".temp/{被测环境}-{用户别名}.json"))
-    return my_page
 
     # with f"这里使用filelock进行文件锁,锁的文件名字为{被测环境}-{用户别名}.lock":
     #     if f".temp/{被测环境}-{用户别名}.json存在,判断方法os.path.exists":

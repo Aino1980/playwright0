@@ -1,5 +1,4 @@
 from module import *
-from module.BasePage import PageObject
 
 
 class 我的任务_类(PageObject):
