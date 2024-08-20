@@ -3,6 +3,7 @@ import time
 import os
 import sys
 import re
+import random
 from playwright.sync_api import Page, expect, BrowserContext, Locator
 from module.BasePage import PageObject
 from utils.GetPath import get_path
