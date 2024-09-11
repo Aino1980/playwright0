@@ -17,7 +17,7 @@ class 项目集_类(PageObject):
 
     def 创建项目集(self, 项目集名称="自动化创建项目集", 是否需要纳秒时间戳=True):
         self.navigate()
-        self.click_button("新建")
+        self.click_button("新建111", timeout=3_000)
         if 是否需要纳秒时间戳:
             项目集名称 = f"{项目集名称}_{time.time_ns()}"
         self.项目集名称.fill(项目集名称)
