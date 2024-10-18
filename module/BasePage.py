@@ -2,6 +2,7 @@ from module import *
 from module.table import Table
 from module.locators import Locators
 from utils.my_date import *
+import allure
 
 
 class PageObject:
@@ -28,6 +29,28 @@ class PageObject:
         else:
             self.page.locator(".ant-input-affix-wrapper input").fill(搜索内容)
         self.page.wait_for_load_state("networkidle")
+
+    def hover_retry(self, hover对象: Locator, 下一步点击对象: Locator, 第一步动作="hover", 第二步动作="click", timeout=30_000):
+        start_time = time.time()
+        while True:
+            if time.time() - start_time > timeout / 1000:
+                pytest.fail(f"hover重试{hover对象.__str__()}在{timeout/1000}秒内未成功")
+            try:
+                self.page.mouse.move(x=1, y=1)
+                self.page.wait_for_timeout(1_000)
+                if 第一步动作 == "hover":
+                    hover对象.last.hover()
+                else:
+                    hover对象.last.click()
+                self.page.wait_for_timeout(3_000)
+                if 第二步动作 == "click":
+                    下一步点击对象.last.click(timeout=3000)
+                else:
+                    下一步点击对象.last.wait_for(state="visible", timeout=3000)
+                break
+            except:
+                continue
+
 
     def 表单_文本框填写(self, 表单项名称: str, 需要填写的文本: str, 表单最上层定位: Locator = None, timeout: float = None):
         if 表单最上层定位:
@@ -142,3 +165,54 @@ class PageObject:
                 self.表单_日期(表单项名称=表单项, 日期=内容, 表单最上层定位=处理后的表单最上层定位, timeout=timeout)
             else:
                 pytest.fail(f"不支持的快捷表单填写:\n{表单项}:{内容}")
+
+    @allure.step("重试")
+    def 重试(self, *args, 重试次数=10):
+        """
+        重试一系列步骤
+        @param args:
+        1. 第一个传的是子步骤的指针,比如locator.click, locator.hover
+        2. 如果只传子步骤指针,则默认执行时的timeout为3_000
+        3. 如果需要传参,则需要使用(子步骤指针, 位置参数1, 位置参数2, {"命名参数名称1": 命名参数值1, "命名参数名称2": 命名参数值2})
+        @param 重试次数:
+        @return:
+        """
+        for _ in range(重试次数):
+            try:
+                for arg in args:
+                    if isinstance(arg, tuple):
+                        with allure.step(f"{arg[0].__name__} 参数:{arg[1:]}"):
+                            func = arg[0]
+                            param = arg[1:]
+                            named_params = {}
+                            positional_params = []
+                            for in_param in param:
+                                if isinstance(in_param, dict):
+                                    named_params.update(in_param)
+                                else:
+                                    positional_params.append(in_param)
+                            func(*positional_params, **named_params)
+                    else:
+                        with allure.step(arg.__name__):
+                            arg(timeout=3000)
+                break
+            except Exception as e:
+                if _ == 重试次数 - 1:
+                    print(f"已经重试{重试次数}次，但仍然失败，错误信息：", e)
+                    raise e
+        # for _ in range(重试次数):
+        #     try:å
+        #         for arg in args:
+        #             if isinstance(arg, tuple):
+        #                 with allure.step(f"{arg[0].__name__} 参数:{arg[1:]}"):
+        #                     f = arg[0]
+        #                     param = arg[1:]
+        #                     f(*param)
+        #             else:
+        #                 with allure.step(arg.__name__):
+        #                     arg(timeout=3000)
+        #         break
+        #     except Exception as e:
+        #         if _ == 重试次数 - 1:
+        #             print(f"已经重试{重试次数}次，但仍然失败，错误信息：", e)
+        #             raise e
