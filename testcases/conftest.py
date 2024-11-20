@@ -2,6 +2,7 @@ import hashlib
 import shutil
 import os
 import sys
+import time
 from pathlib import Path
 from typing import (
     Any,
@@ -186,6 +187,8 @@ def new_context(
     contexts: List[BrowserContext] = []
 
     def _new_context(**kwargs: Any) -> BrowserContext:
+        #  复制browser_context_args,防止污染参数
+        browser_context_args_copy = browser_context_args.copy()
         #  获取重试的log策略并转成列表
         _rerun_strategy = pytestconfig.getoption("--rerun_strategy").split(",")
         #  获取重试次数,此处为2则为重试2次,加上第1次,一共跑3次
@@ -213,12 +216,12 @@ def new_context(
                 video_option = "off"
         #  这里只判断了video,是因为创建context时必须设置record_video_dir后才开始主动录屏
         capture_video = video_option in ["on", "retain-on-failure"]
-        browser_context_args.update(kwargs)
+        browser_context_args_copy.update(kwargs)
         if capture_video:
             video_option_dict = {"record_video_dir": _pw_artifacts_folder.name}
             #  字典的update可以直接传字典,也可以解包,解包相当于kwargs
-            browser_context_args.update(video_option_dict)
-        my_context = browser.new_context(**browser_context_args)
+            browser_context_args_copy.update(video_option_dict)
+        my_context = browser.new_context(**browser_context_args_copy)
         my_context.set_default_timeout(ui_timeout)
         my_context.set_default_navigation_timeout(ui_timeout * 2)
         original_close = my_context.close
@@ -393,7 +396,7 @@ class ArtifactsRecorder:
                 try:
                     screenshot_path = (
                         # Path(self._pw_artifacts_folder.name) / create_guid()
-                            Path(self._pw_artifacts_folder.name) / page.title()
+                            Path(self._pw_artifacts_folder.name) / "".join([page.title(), str(time.time_ns())])
                     )
                     page.screenshot(
                         timeout=5000,
@@ -411,21 +414,21 @@ def create_guid() -> str:
     return hashlib.sha256(os.urandom(16)).hexdigest()
 
 
-@pytest.hookimpl(trylast=True)
-def pytest_sessionfinish(session):
-    allure_report_auto_open_config = session.config.getoption("--allure_report_auto_open")
-    if session.config.getoption("--allure_report_auto_open") != "off":
-        if sys.platform != "linux":
-            import subprocess
-            allure_report_dir = allure_report_auto_open_config
-            # 尝试关闭可能已经在运行的 Allure 服务
-            try:
-                if sys.platform == 'darwin':  # macOS
-                    subprocess.call("pkill -f 'allure'", shell=True)
-                elif sys.platform == 'win32':  # Windows
-                    command = "taskkill /F /IM allure.exe /T"
-                    subprocess.call(command, shell=True)
-            except Exception as e:
-                print(e)
-            allure_command = f'allure serve {allure_report_dir}'
-            subprocess.Popen(allure_command, shell=True)
+# @pytest.hookimpl(trylast=True)
+# def pytest_sessionfinish(session):
+#     allure_report_auto_open_config = session.config.getoption("--allure_report_auto_open")
+#     if session.config.getoption("--allure_report_auto_open") != "off":
+#         if sys.platform != "linux":
+#             import subprocess
+#             allure_report_dir = allure_report_auto_open_config
+#             # 尝试关闭可能已经在运行的 Allure 服务
+#             try:
+#                 if sys.platform == 'darwin':  # macOS
+#                     subprocess.call("pkill -f 'allure'", shell=True)
+#                 elif sys.platform == 'win32':  # Windows
+#                     command = "taskkill /F /IM allure.exe /T"
+#                     subprocess.call(command, shell=True)
+#             except Exception as e:
+#                 print(e)
+#             allure_command = f'allure serve {allure_report_dir}'
+#             subprocess.Popen(allure_command, shell=True)

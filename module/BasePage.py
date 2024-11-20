@@ -17,11 +17,11 @@ class PageObject:
     def table(self, 唯一文字, 表格序号=-1):
         return Table(self.page, 唯一文字, 表格序号)
 
-    def click_button(self, button_name, timeout=30_000):
+    def click_button(self, button_name, timeout=30_000, nth=-1):
         button_loc = self.page.locator("button")
         for 单字符 in button_name:
             button_loc = button_loc.filter(has_text=单字符)
-        button_loc.click(timeout=timeout)
+        button_loc.nth(nth).click(timeout=timeout)
 
     def search(self, 搜索内容: str, placeholder=None):
         if placeholder:
@@ -34,7 +34,7 @@ class PageObject:
         start_time = time.time()
         while True:
             if time.time() - start_time > timeout / 1000:
-                pytest.fail(f"hover重试{hover对象.__str__()}在{timeout/1000}秒内未成功")
+                pytest.fail(f"hover重试{hover对象.__str__()}在{timeout / 1000}秒内未成功")
             try:
                 self.page.mouse.move(x=1, y=1)
                 self.page.wait_for_timeout(1_000)
@@ -50,7 +50,6 @@ class PageObject:
                 break
             except:
                 continue
-
 
     def 表单_文本框填写(self, 表单项名称: str, 需要填写的文本: str, 表单最上层定位: Locator = None, timeout: float = None):
         if 表单最上层定位:
