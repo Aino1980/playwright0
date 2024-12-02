@@ -3,8 +3,10 @@ from testcases import *
 
 def test_baidu(page: Page):
     my_page = PageIns(page)
-    # baidu.navigate()
-    # baidu.search_input.fill("playwright")
-    # baidu.click_button("百度一下")
-    # expect(baidu.page.get_by_text("https://github.com/microsoft/playwright").last).to_be_visible()
-    my_page.百度.baidu_search("playwright", "https://github.com/microsoft/playwright")
+    my_page.百度.baidu_search("淘宝", "淘宝")
+    with my_page.page.expect_popup() as new:
+        my_page.百度.page.locator("a").filter(has_text="淘宝").first.click()
+    print(my_page.百度.page.title())
+    my_page.page = new.value
+    my_page.百度.page.wait_for_timeout(3_000)
+    print(my_page.百度.page.title())
