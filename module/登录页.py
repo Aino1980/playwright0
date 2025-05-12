@@ -4,7 +4,7 @@ from module import *
 class 登录页_类(PageObject):
     def __init__(self, page):
         super().__init__(page)
-        self.url = "/signin"
+        self.url = "/workbench"
         self.用户名输入框 = self.page.get_by_placeholder("用户名/邮箱/手机号")
         self.密码输入框 = self.page.get_by_placeholder("密码")
         self.通知铃铛 = self.page.locator(".anticon-bell")

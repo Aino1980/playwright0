@@ -31,11 +31,11 @@ class 项目集_类(PageObject):
             self.navigate()
             # self.请输入项目集名称.fill(项目集名称)
             self.search(项目集名称, "请输入项目集名称")
+            expect(self.page.locator("a").filter(has_text=项目集名称).or_(self.暂无数据)).not_to_have_count(0)
             if self.暂无数据.count():
                 break
             else:
-                self.设置齿轮.last.click()
-                self.运维操作.click()
+                self.重试(self.设置齿轮.last.click, self.运维操作.click)
                 self.click_button("删除项目集")
                 self.click_button("确定")
 

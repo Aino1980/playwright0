@@ -4,6 +4,8 @@ import os
 import sys
 import time
 from pathlib import Path
+from utils.GetPath import get_path
+from filelock import FileLock
 from typing import (
     Any,
     Dict,
@@ -20,6 +22,7 @@ from playwright.sync_api import (
     Page,
     Playwright,
     expect,
+    BrowserType,
 )
 from pytest_playwright.pytest_playwright import CreateContextCallback
 from slugify import slugify
@@ -33,8 +36,11 @@ from playwright.sync_api._generated import Locator as _Locator
 
 import json
 from allure import step
+
 api_Count = []
 time_out = 0
+
+
 # @pytest.fixture()
 # def hello_world():
 #     print("hello")
@@ -46,7 +52,7 @@ time_out = 0
 # def page(context: BrowserContext) -> Page:
 #     print("this is my page")
 #     return context.new_page()
-
+# sys.stdout = sys.stderr
 
 @pytest.fixture(scope="session", autouse=True)
 def test_init(base_url):
@@ -88,6 +94,20 @@ def browser_context_args(
     }
 
 
+def pytest_terminal_summary(config):
+    # 使用pytest-xdist时,最终任务完成删除ws-endpoint.json的逻辑
+    if not hasattr(config, "workerinput"):
+        try:
+            os.remove(get_path(".temp/ws-endpoint.json"))
+            print(f"文件ws-endpoint.json已成功删除。")
+        except FileNotFoundError:
+            print(f"未找到文件ws-endpoint.json")
+        except PermissionError:
+            print(f"没有权限删除文件ws-endpoint.json")
+        except Exception as e:
+            print(f"删除文件ws-endpoint.json时出现错误: {e}")
+
+
 def pytest_addoption(parser: Any) -> None:
     group = parser.getgroup("playwright", "Playwright")
     group.addoption(
@@ -115,6 +135,16 @@ def pytest_addoption(parser: Any) -> None:
         action="store",
         default="off",
         help="if finish test, allure report auto open, eg: /Users/liuyunlong/Desktop/pw-allure",
+    )
+    group.addoption(
+        "--wsendpoint",
+        type=str,
+        default="",
+        help="""
+        可以通过cdp启动或者使用'playwright launch-server --browser=chromium --config ws-config.json'来启动,
+        传入的参数举例: ws://192.168.3.46:33013/0867ca426dcfb6474c055e1c7035ec49,2;local,4
+        前半部分为ws地址,逗号后面的2是ws支持的并发上限,多个ws用;分割,local代表本机执行
+        """,
     )
 
 
@@ -187,6 +217,8 @@ def new_context(
         ui_timeout: float,
         pytestconfig: Any,
         _pw_artifacts_folder: tempfile.TemporaryDirectory,
+        browser_type:BrowserType,
+        browser_type_launch_args
 ) -> Generator[CreateContextCallback, None, None]:
     browser_context_args = browser_context_args.copy()
     context_args_marker = next(request.node.iter_markers("browser_context_args"), None)
@@ -229,13 +261,101 @@ def new_context(
             video_option_dict = {"record_video_dir": _pw_artifacts_folder.name}
             #  字典的update可以直接传字典,也可以解包,解包相当于kwargs
             browser_context_args_copy.update(video_option_dict)
-        my_context = browser.new_context(**browser_context_args_copy)
+        wsendpoint_option = pytestconfig.getoption("--wsendpoint")
+        if wsendpoint_option:
+            wsendpoint_option = wsendpoint_option.split(";")
+            print("start with ws-endpoint context")
+
+            # ws并发轮询处理函数:
+            def wsendpoint_load() -> BrowserContext | None:
+                while True:
+                    # 等待有可用空闲连接:
+                    with open(get_path(".temp/ws-endpoint.json"), "r") as ws_file:
+                        ws_dict_read = json.loads(ws_file.read())  # type:dict
+                    min_ratio = 1
+                    min_key = None
+                    if ws_dict_read:
+                        if ws_dict_read:
+                            for key, value in ws_dict_read.items():
+                                ratio = int(value[0]) / int(value[1])
+                                if ratio <= min_ratio:
+                                    min_ratio = ratio
+                                    min_key = key
+                        if min_ratio == 1:
+                            print(f"当前没有可用的连接,等待三秒后重试")
+                            time.sleep(3)
+                            continue
+                        # 使用本地执行的逻辑:
+                        if min_key == "local":
+                            print("使用本地浏览器创建上下文")
+                            ws_context = browser_type.launch(**browser_type_launch_args).new_context(
+                                **{**browser_context_args})
+                            ws_dict_read[min_key][0] = int(ws_dict_read[min_key][0]) + 1
+                            with open(get_path(".temp/ws-endpoint.json"), "w") as ws_file_w:
+                                ws_file_w.write(json.dumps(ws_dict_read))
+                            # 给生成的context添加受保护属性_ws,为了后面关闭时,判断是否需要做处理
+                            ws_context._ws = "local"
+                            return ws_context
+                        # 使用ws-endpoint连接的逻辑:
+                        else:
+                            for _ in range(3):
+                                # 使用try去测试ws-endpoint是否可用:
+                                try:
+                                    # 去除connect不支持的参数:
+                                    ws_context = browser_type.connect(
+                                        ws_endpoint=min_key, timeout=10_000, **{k: v for k, v in browser_type_launch_args.items() if k in ["slow_mo", "headers", "expose_network"]}
+                                    ).new_context(**{**browser_context_args})
+                                    print(f"连接ws-endpoint:{min_key}成功")
+                                    ws_dict_read[min_key][0] = int(ws_dict_read[min_key][0]) + 1
+                                    with open(get_path(".temp/ws-endpoint.json"), "w") as ws_file_w:
+                                        ws_file_w.write(json.dumps(ws_dict_read))
+                                    # 给生成的context添加受保护属性_ws,为了后面关闭时,判断是否需要做处理
+                                    ws_context._ws = min_key
+                                    return ws_context
+                                # 防止硬塞入storage_state文件,文件路径不对时,删除无辜的ws-endpoint服务
+                                except FileNotFoundError as e:
+                                    raise e
+                                except:
+                                    if _ == 2:
+                                        print(f"连接ws-endpoint:{min_key}失败,已使其失效")
+                                        ws_dict_read.pop(min_key)
+                                        with open(get_path(".temp/ws-endpoint.json"), "w") as ws_file_w:
+                                            ws_file_w.write(json.dumps(ws_dict_read))
+                    else:
+                        pytest.fail("已经没有可用的ws-endpoint,用例失败")
+
+            # 这里加锁是为了原子化,处理不会冲突,分配是可以加锁的
+            with FileLock(get_path(".temp/ws-endpoint.lock")):
+                if os.path.exists(get_path(".temp/ws-endpoint.json")):
+                    my_context = wsendpoint_load()
+                else:
+                    # 新建ws-endpoint.json的逻辑
+                    with open(get_path(".temp/ws-endpoint.json"), "w") as new_ws_file:
+                        ws_dict = {}
+                        for ws_info in wsendpoint_option:  # type:str
+                            ws, limit = ws_info.split(",")
+                            ws_dict.update({ws: [0, limit]})
+                        new_ws_file.write(json.dumps(ws_dict))
+                    my_context = wsendpoint_load()
+        else:
+            my_context = browser.new_context(**browser_context_args_copy)
         my_context.set_default_timeout(ui_timeout)
         my_context.set_default_navigation_timeout(ui_timeout * 2)
         original_close = my_context.close
 
         def _close_wrapper(*args: Any, **my_kwargs: Any) -> None:
             contexts.remove(context)
+            # 如果有context._ws属性,说明是是通过wsendpoint创建的context:
+            try:
+                ws = context._ws
+                # 这里注意文件的读写的with是可以嵌套的:
+                with open(get_path(".temp/ws-endpoint.json"), "r") as ws_file_r:
+                    ws_dict_read = json.loads(ws_file_r.read())  # type:dict
+                    ws_dict_read[ws][0] = int(ws_dict_read[ws][0]) - 1
+                    with open(get_path(".temp/ws-endpoint.json"), "w") as ws_file_w:
+                        ws_file_w.write(json.dumps(ws_dict_read))  # type:dict
+            except:
+                pass
             _artifacts_recorder.on_will_close_browser_context(my_context)
             original_close(*args, **my_kwargs)
 
